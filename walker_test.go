@@ -123,7 +123,7 @@ func TestWalk_SkipField(t *testing.T) {
 	w := New()
 	w.Handle("tag", func(ctx FieldContext) error {
 		if ctx.Tag.Name == "b" {
-			return SkipField
+			return ErrSkipField
 		}
 		visited = append(visited, ctx.Tag.Name)
 		return nil
@@ -151,7 +151,7 @@ func TestWalk_SkipChildren(t *testing.T) {
 	w.Handle("tag", func(ctx FieldContext) error {
 		paths = append(paths, ctx.Path)
 		if ctx.Tag.Name == "inner" {
-			return SkipChildren
+			return ErrSkipChildren
 		}
 		return nil
 	})

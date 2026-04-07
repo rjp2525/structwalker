@@ -106,10 +106,10 @@ func (w *Walker) walkStruct(v reflect.Value, basePath string, depth int, visited
 		skipChildren := false
 
 		if err := w.dispatchHandlers(fc, fm, BeforeChildren, multi); err != nil {
-			if errors.Is(err, SkipField) {
+			if errors.Is(err, ErrSkipField) {
 				continue
 			}
-			if errors.Is(err, SkipChildren) {
+			if errors.Is(err, ErrSkipChildren) {
 				skipChildren = true
 			} else if multi == nil {
 				return err
@@ -117,10 +117,10 @@ func (w *Walker) walkStruct(v reflect.Value, basePath string, depth int, visited
 		}
 
 		if err := w.dispatchGlobal(fc, BeforeChildren, multi); err != nil {
-			if errors.Is(err, SkipField) {
+			if errors.Is(err, ErrSkipField) {
 				continue
 			}
-			if errors.Is(err, SkipChildren) {
+			if errors.Is(err, ErrSkipChildren) {
 				skipChildren = true
 			} else if multi == nil {
 				return err
@@ -142,19 +142,19 @@ func (w *Walker) walkStruct(v reflect.Value, basePath string, depth int, visited
 		}
 
 		if err := w.dispatchHandlers(fc, fm, AfterChildren, multi); err != nil {
-			if errors.Is(err, SkipField) {
+			if errors.Is(err, ErrSkipField) {
 				continue
 			}
-			if multi == nil && !errors.Is(err, SkipChildren) {
+			if multi == nil && !errors.Is(err, ErrSkipChildren) {
 				return err
 			}
 		}
 
 		if err := w.dispatchGlobal(fc, AfterChildren, multi); err != nil {
-			if errors.Is(err, SkipField) {
+			if errors.Is(err, ErrSkipField) {
 				continue
 			}
-			if multi == nil && !errors.Is(err, SkipChildren) {
+			if multi == nil && !errors.Is(err, ErrSkipChildren) {
 				return err
 			}
 		}
@@ -176,7 +176,7 @@ func (w *Walker) checkContext() error {
 }
 
 func (w *Walker) handleError(err error, fc FieldContext, tagKey string, multi *MultiError) error {
-	if errors.Is(err, SkipField) || errors.Is(err, SkipChildren) {
+	if errors.Is(err, ErrSkipField) || errors.Is(err, ErrSkipChildren) {
 		return err
 	}
 	if w.opts.errorMode == SkipOnError {

@@ -43,14 +43,14 @@ func ExampleWalker_basicUsage() {
 func ExampleWalker_sensitiveDataMasking() {
 	type APIResponse struct {
 		UserID    int    `json:"user_id"`
-		Email     string `json:"email" mask:",redact"`
-		SSN       string `json:"ssn" mask:",redact"`
+		Email     string `json:"email" mask:"redact"`
+		SSN       string `json:"ssn" mask:"redact"`
 		PublicKey string `json:"public_key"`
 	}
 
 	w := structwalker.New()
 	w.Handle("mask", func(ctx structwalker.FieldContext) error {
-		if ctx.Tag.HasFlag("redact") {
+		if ctx.Tag.Name == "redact" {
 			return ctx.SetValue("***REDACTED***")
 		}
 		return nil
@@ -144,7 +144,7 @@ func ExampleWalker_skipChildren() {
 	})
 	w.Handle("audit", func(ctx structwalker.FieldContext) error {
 		if ctx.Tag.Name == "skip" {
-			return structwalker.SkipChildren
+			return structwalker.ErrSkipChildren
 		}
 		return nil
 	})

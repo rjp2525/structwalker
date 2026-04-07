@@ -129,7 +129,7 @@ Handlers are callbacks registered for specific tag keys. When walking a struct, 
 w := structwalker.New()
 
 w.Handle("mask", func(ctx structwalker.FieldContext) error {
-    if ctx.Tag.HasFlag("redact") {
+    if ctx.Tag.Name == "redact" {
         return ctx.SetValue("***REDACTED***")
     }
     return nil
@@ -137,8 +137,8 @@ w.Handle("mask", func(ctx structwalker.FieldContext) error {
 
 type Response struct {
     UserID int    `json:"user_id"`
-    Email  string `json:"email" mask:",redact"`
-    SSN    string `json:"ssn" mask:",redact"`
+    Email  string `json:"email" mask:"redact"`
+    SSN    string `json:"ssn" mask:"redact"`
 }
 
 resp := &Response{UserID: 1, Email: "alice@example.com", SSN: "123-45-6789"}
@@ -296,7 +296,7 @@ Stop processing remaining handlers on the current field and move to the next:
 ```go
 w.Handle("json", func(ctx structwalker.FieldContext) error {
     if ctx.Tag.IsIgnored() {
-        return structwalker.SkipField
+        return structwalker.ErrSkipField
     }
     // process field...
     return nil

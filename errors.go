@@ -7,11 +7,11 @@ import (
 )
 
 var (
-	// SkipField causes the walker to skip remaining handlers on the current field.
-	SkipField = errors.New("skip field")
+	// ErrSkipField causes the walker to skip remaining handlers on the current field.
+	ErrSkipField = errors.New("skip field")
 
-	// SkipChildren prevents recursion into a nested struct field.
-	SkipChildren = errors.New("skip children")
+	// ErrSkipChildren prevents recursion into a nested struct field.
+	ErrSkipChildren = errors.New("skip children")
 )
 
 // WalkError wraps an error with field path context.
