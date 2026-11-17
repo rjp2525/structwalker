@@ -4,38 +4,48 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync"
+	"sync/atomic"
 )
 
-// Walker is the entry point. Register handlers for tag keys, then Walk any struct.
+// Walker walks structs and calls the handlers registered on it. Create one
+// with New, register handlers, then call Walk as often as you like.
+//
+// A Walker is safe for concurrent use. Handlers and middleware can be added
+// while walks are running. A walk uses the set that was registered when it
+// started.
 type Walker struct {
-	handlers   *handlerRegistry
-	middleware []Middleware
-	cache      *typeCache
-	opts       walkerOptions
+	mu       sync.Mutex
+	registry atomic.Pointer[registry]
+	opts     walkerOptions
 }
 
 // New creates a Walker configured with the given options.
 func New(opts ...WalkerOption) *Walker {
-	o := defaultOptions()
+	w := &Walker{opts: defaultOptions()}
 	for _, opt := range opts {
-		opt(&o)
+		opt(&w.opts)
 	}
-	return &Walker{
-		handlers: newHandlerRegistry(),
-		cache:    newTypeCache(),
-		opts:     o,
-	}
+	w.registry.Store(newRegistry(nil, nil))
+	return w
 }
 
-// Handle registers a handler for a specific tag key.
+// Handle registers a handler for fields that carry the given tag key.
 func (w *Walker) Handle(tagKey string, fn HandlerFunc, opts ...HandlerOption) {
-	w.handlers.add(tagKey, fn, opts...)
-	w.cache.clear()
+	h := newHandler(tagKey, false, fn, opts)
+	w.update(func(r *registry) *registry { return r.withHandler(h) })
 }
 
-// HandleAll registers a handler invoked for every field regardless of tags.
+// HandleAll registers a handler that runs on every field, tagged or not.
 func (w *Walker) HandleAll(fn HandlerFunc, opts ...HandlerOption) {
-	w.handlers.addGlobal(fn, opts...)
+	h := newHandler("", true, fn, opts)
+	w.update(func(r *registry) *registry { return r.withHandler(h) })
+}
+
+func (w *Walker) update(fn func(*registry) *registry) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.registry.Store(fn(w.registry.Load()))
 }
 
 // Walk processes the given struct. Pass a pointer for fields to be settable.
@@ -56,107 +66,72 @@ func (w *Walker) WalkValue(v reflect.Value) error {
 		return fmt.Errorf("structwalker: expected struct, got %s", v.Kind())
 	}
 
-	var visited map[uintptr]bool
+	run := walk{Walker: w, registry: w.registry.Load()}
 	if w.opts.followPointers {
-		visited = make(map[uintptr]bool)
+		run.visited = make(map[uintptr]bool)
 	}
-	return w.walkStruct(v, "", 0, visited)
+	return run.structFields(v, "", 0)
 }
 
-func (w *Walker) walkStruct(v reflect.Value, basePath string, depth int, visited map[uintptr]bool) error {
+// walk is the state of a single Walk call.
+type walk struct {
+	*Walker
+	registry *registry
+	visited  map[uintptr]bool
+}
+
+func (w *walk) structFields(v reflect.Value, basePath string, depth int) error {
 	if depth > w.opts.maxDepth {
 		return fmt.Errorf("structwalker: max depth %d exceeded at %s", w.opts.maxDepth, basePath)
 	}
 
-	if err := w.checkContext(); err != nil {
-		return err
-	}
-
-	t := v.Type()
-	meta := w.cache.get(t, w.handlers.keys(), w.opts.tagParser)
+	plan := w.registry.plan(v.Type(), &w.opts)
 
 	var multi *MultiError
 	if w.opts.errorMode == CollectErrors {
 		multi = &MultiError{}
 	}
 
-	for i, fm := range meta.Fields {
-		if err := w.checkContext(); err != nil {
+	for i := range plan.fields {
+		if err := w.opts.ctx.Err(); err != nil {
 			return err
 		}
 
-		if !fm.StructField.IsExported() && !w.opts.unexported {
-			continue
-		}
-
-		fieldVal := v.Field(i)
-		path := joinPath(basePath, fm.StructField.Name)
-
+		fp := &plan.fields[i]
 		fc := FieldContext{
-			AllTags: fm.Tags,
-			Field:   fm.StructField,
-			Value:   fieldVal,
-			Path:    path,
+			AllTags: fp.tags,
+			Field:   fp.field,
+			Value:   v.Field(fp.index),
+			Path:    joinPath(basePath, fp.field.Name),
 			Depth:   depth,
 			Parent:  v,
-			Index:   i,
-			Walker:  w,
+			Index:   fp.index,
+			Walker:  w.Walker,
 		}
 
-		skipChildren := false
-
-		if err := w.dispatchHandlers(fc, fm, BeforeChildren, multi); err != nil {
-			if errors.Is(err, ErrSkipField) {
-				continue
-			}
-			if errors.Is(err, ErrSkipChildren) {
-				skipChildren = true
-			} else if multi == nil {
-				return err
-			}
+		skipChildren, err := w.dispatch(fp.before, fc, multi)
+		if errors.Is(err, ErrSkipField) {
+			continue
 		}
-
-		if err := w.dispatchGlobal(fc, BeforeChildren, multi); err != nil {
-			if errors.Is(err, ErrSkipField) {
-				continue
-			}
-			if errors.Is(err, ErrSkipChildren) {
-				skipChildren = true
-			} else if multi == nil {
-				return err
-			}
+		if err != nil {
+			return err
 		}
 
 		if !skipChildren {
-			if err := w.recurseField(fieldVal, fm, path, depth, visited); err != nil {
-				if multi != nil {
-					if walkErr, ok := err.(*WalkError); ok {
-						multi.add(walkErr)
-					} else {
-						multi.add(&WalkError{Path: path, Err: err})
-					}
-				} else {
+			if err := w.recurse(fc.Value, fp, fc.Path, depth); err != nil {
+				if multi == nil {
 					return err
+				}
+				if walkErr, ok := errors.AsType[*WalkError](err); ok {
+					multi.add(walkErr)
+				} else {
+					multi.add(&WalkError{Path: fc.Path, Err: err})
 				}
 			}
 		}
 
-		if err := w.dispatchHandlers(fc, fm, AfterChildren, multi); err != nil {
-			if errors.Is(err, ErrSkipField) {
-				continue
-			}
-			if multi == nil && !errors.Is(err, ErrSkipChildren) {
-				return err
-			}
-		}
-
-		if err := w.dispatchGlobal(fc, AfterChildren, multi); err != nil {
-			if errors.Is(err, ErrSkipField) {
-				continue
-			}
-			if multi == nil && !errors.Is(err, ErrSkipChildren) {
-				return err
-			}
+		if _, err := w.dispatch(fp.after, fc, multi); err != nil && !errors.Is(err, ErrSkipField) {
+			return err
 		}
 	}
 
@@ -166,174 +141,93 @@ func (w *Walker) walkStruct(v reflect.Value, basePath string, depth int, visited
 	return nil
 }
 
-func (w *Walker) checkContext() error {
-	select {
-	case <-w.opts.ctx.Done():
-		return w.opts.ctx.Err()
-	default:
-		return nil
-	}
-}
-
-func (w *Walker) handleError(err error, fc FieldContext, tagKey string, multi *MultiError) error {
-	if errors.Is(err, ErrSkipField) || errors.Is(err, ErrSkipChildren) {
-		return err
-	}
-	if w.opts.errorMode == SkipOnError {
-		return nil
-	}
-	walkErr := &WalkError{
-		Path:   fc.Path,
-		TagKey: tagKey,
-		Field:  fc.Field.Name,
-		Err:    err,
-	}
-	if multi != nil {
-		multi.add(walkErr)
-		return nil
-	}
-	return walkErr
-}
-
-func (w *Walker) dispatchHandlers(fc FieldContext, fm fieldMeta, phase Phase, multi *MultiError) error {
-	for _, key := range fm.HandlerKeys {
-		tag, ok := fm.TagMap[key]
-		if !ok || tag.IsIgnored() {
+// dispatch runs a field's handlers for one phase. It returns ErrSkipField as
+// soon as a handler asks for it, and any other error only when that error
+// should stop the walk.
+func (w *walk) dispatch(steps []step, fc FieldContext, multi *MultiError) (skipChildren bool, err error) {
+	for i := range steps {
+		s := &steps[i]
+		fc.Tag = s.tag
+		if s.filter != nil && !s.filter(fc) {
 			continue
 		}
 
-		entries := w.handlers.entriesForPhase(key, phase)
-		for _, entry := range entries {
-			fc.Tag = tag
-			if entry.config.filter != nil && !entry.config.filter(fc) {
-				continue
+		err := s.run(fc)
+		switch {
+		case err == nil:
+		case errors.Is(err, ErrSkipField):
+			return false, ErrSkipField
+		case errors.Is(err, ErrSkipChildren):
+			skipChildren = true
+		case w.opts.errorMode == SkipOnError:
+		default:
+			walkErr := &WalkError{Path: fc.Path, TagKey: s.tag.Key, Field: fc.Field.Name, Err: err}
+			if multi == nil {
+				return false, walkErr
 			}
-
-			if err := w.chain(entry.fn)(fc); err != nil {
-				if herr := w.handleError(err, fc, key, multi); herr != nil {
-					return herr
-				}
-			}
+			multi.add(walkErr)
 		}
 	}
-	return nil
+	return skipChildren, nil
 }
 
-func (w *Walker) dispatchGlobal(fc FieldContext, phase Phase, multi *MultiError) error {
-	entries := w.handlers.globalForPhase(phase)
-	for _, entry := range entries {
-		if entry.config.filter != nil && !entry.config.filter(fc) {
-			continue
-		}
-
-		if err := w.chain(entry.fn)(fc); err != nil {
-			if herr := w.handleError(err, fc, "", multi); herr != nil {
-				return herr
-			}
-		}
-	}
-	return nil
-}
-
-func (w *Walker) recurseField(fieldVal reflect.Value, fm fieldMeta, path string, depth int, visited map[uintptr]bool) error {
+func (w *walk) recurse(fieldVal reflect.Value, fp *fieldPlan, path string, depth int) error {
 	val := fieldVal
-	if fm.IsPtr && w.opts.followPointers {
+	if fp.isPtr && w.opts.followPointers {
 		if val.IsNil() {
 			return nil
 		}
 		val = val.Elem()
 
 		ptr := fieldVal.Pointer()
-		if visited[ptr] {
+		if w.visited[ptr] {
 			return nil
 		}
-		visited[ptr] = true
-		defer delete(visited, ptr)
+		w.visited[ptr] = true
+		defer delete(w.visited, ptr)
 	}
 
-	if val.Kind() == reflect.Struct && ((fm.IsStruct && !fm.IsPtr) || (fm.IsPtr && w.opts.followPointers)) {
-		return w.walkStruct(val, path, depth+1, visited)
+	if val.Kind() == reflect.Struct && ((fp.isStruct && !fp.isPtr) || (fp.isPtr && w.opts.followPointers)) {
+		return w.structFields(val, path, depth+1)
 	}
 
-	if fm.IsSlice && w.opts.sliceElements {
-		return w.walkSlice(val, path, depth, visited)
-	}
-
-	if fm.IsMap && w.opts.mapEntries {
-		return w.walkMap(val, path, depth, visited)
-	}
-
-	return nil
-}
-
-func (w *Walker) walkSlice(v reflect.Value, basePath string, depth int, visited map[uintptr]bool) error {
-	for i := range v.Len() {
-		if err := w.walkSliceElem(v.Index(i), fmt.Sprintf("%s[%d]", basePath, i), depth, visited); err != nil {
-			return err
+	if fp.isSlice && w.opts.sliceElements {
+		for i := range val.Len() {
+			if err := w.element(val.Index(i), fmt.Sprintf("%s[%d]", path, i), depth); err != nil {
+				return err
+			}
 		}
 	}
+
+	if fp.isMap && w.opts.mapEntries {
+		for iter := val.MapRange(); iter.Next(); {
+			if err := w.element(iter.Value(), fmt.Sprintf("%s[%v]", path, iter.Key().Interface()), depth); err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 
-// walkSliceElem processes a single slice element, dereferencing pointers and
-// recursing into structs. Extracted from walkSlice to avoid defer-in-loop (G35).
-func (w *Walker) walkSliceElem(elem reflect.Value, elemPath string, depth int, visited map[uintptr]bool) error {
+func (w *walk) element(elem reflect.Value, path string, depth int) error {
 	if elem.Kind() == reflect.Pointer {
 		if elem.IsNil() {
 			return nil
 		}
-		if visited != nil {
+		if w.visited != nil {
 			ptr := elem.Pointer()
-			if visited[ptr] {
+			if w.visited[ptr] {
 				return nil
 			}
-			visited[ptr] = true
-			defer delete(visited, ptr)
+			w.visited[ptr] = true
+			defer delete(w.visited, ptr)
 		}
 		elem = elem.Elem()
 	}
 
 	if elem.Kind() == reflect.Struct {
-		return w.walkStruct(elem, elemPath, depth+1, visited)
-	}
-	return nil
-}
-
-func (w *Walker) walkMap(v reflect.Value, basePath string, depth int, visited map[uintptr]bool) error {
-	if v.IsNil() {
-		return nil
-	}
-	iter := v.MapRange()
-	for iter.Next() {
-		keyStr := fmt.Sprintf("%v", iter.Key().Interface())
-		elemPath := fmt.Sprintf("%s[%s]", basePath, keyStr)
-		if err := w.walkMapElem(iter.Value(), elemPath, depth, visited); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// walkMapElem processes a single map value, dereferencing pointers and
-// recursing into structs. Extracted from walkMap to avoid defer-in-loop (G35).
-func (w *Walker) walkMapElem(elem reflect.Value, elemPath string, depth int, visited map[uintptr]bool) error {
-	if elem.Kind() == reflect.Pointer {
-		if elem.IsNil() {
-			return nil
-		}
-		if visited != nil {
-			ptr := elem.Pointer()
-			if visited[ptr] {
-				return nil
-			}
-			visited[ptr] = true
-			defer delete(visited, ptr)
-		}
-		elem = elem.Elem()
-	}
-
-	if elem.Kind() == reflect.Struct {
-		return w.walkStruct(elem, elemPath, depth+1, visited)
+		return w.structFields(elem, path, depth+1)
 	}
 	return nil
 }

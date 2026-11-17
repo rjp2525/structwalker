@@ -79,11 +79,15 @@ func ParseTag(key, raw string) Tag {
 
 // ParseAllTags extracts all tags from a reflect.StructTag.
 func ParseAllTags(tag reflect.StructTag) []Tag {
-	raw := string(tag)
-	if raw == "" {
-		return nil
+	return parseStructTag(tag, ParseTag)
+}
+
+func parseStructTag(tag reflect.StructTag, parse func(key, raw string) Tag) []Tag {
+	if parse == nil {
+		parse = ParseTag
 	}
 
+	raw := string(tag)
 	var tags []Tag
 	for raw != "" {
 		raw = strings.TrimLeft(raw, " ")
@@ -120,7 +124,7 @@ func ParseAllTags(tag reflect.StructTag) []Tag {
 		value := raw[:j]
 		raw = raw[j+1:]
 
-		tags = append(tags, ParseTag(key, value))
+		tags = append(tags, parse(key, value))
 	}
 
 	return tags
