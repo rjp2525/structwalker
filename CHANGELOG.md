@@ -17,6 +17,7 @@ Every notable change to structwalker is listed here. Versions follow [semantic v
 - `ErrNotSettable`, returned by `SetValue` when the field cannot be changed, so a handler can tell that apart from a bad value. ([#7](https://github.com/rjp2525/structwalker/pull/7))
 - Single quotes keep a comma inside a tag value: `validate:"role,oneof='admin,editor'"` gives the option `oneof` the value `admin,editor`. The quotes are stripped. An apostrophe in the middle of a value is left alone. ([#8](https://github.com/rjp2525/structwalker/pull/8))
 - `FieldContext.Lookup(key)` returns another tag on the same field. A `validate` handler can use it to report the field's `json` name. ([#8](https://github.com/rjp2525/structwalker/pull/8))
+- `Fields`, an iterator over a struct's fields for when you just want a loop. `for f := range structwalker.Fields(&cfg)` visits everything `Walk` would, with the same `FieldContext`, and `break` stops it. No walker, handlers or error plumbing needed. `Walker.Fields` does the same with a walker's options. ([#9](https://github.com/rjp2525/structwalker/pull/9))
 
 ### Changed
 
