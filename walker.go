@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"reflect"
 	"slices"
 	"strconv"
@@ -74,19 +75,7 @@ func (w *Walker) WalkValue(v reflect.Value) error {
 // reflect.Value.
 func (w *Walker) WalkValueContext(ctx context.Context, v reflect.Value) error {
 	run := walk{Walker: w, registry: w.registry.Load(), ctx: ctx}
-	for v.Kind() == reflect.Pointer {
-		if v.IsNil() {
-			return nil
-		}
-		run.root = visit{v.Type(), v.UnsafePointer()}
-		v = v.Elem()
-	}
-
-	if v.Kind() != reflect.Struct {
-		return fmt.Errorf("structwalker: expected struct, got %s", v.Kind())
-	}
-
-	if err := run.structFields(v, "", 0); err != nil {
+	if err := run.start(v); err != nil {
 		return err
 	}
 	if len(run.errs) > 0 {
@@ -94,6 +83,40 @@ func (w *Walker) WalkValueContext(ctx context.Context, v reflect.Value) error {
 	}
 	return nil
 }
+
+// Fields returns an iterator over every field Walk would visit, in the same
+// order. Registered handlers and middleware do not run and FieldContext.Tag is
+// empty, so read tags with FieldContext.Lookup.
+//
+// The iterator yields nothing if v is not a struct or a pointer to one, and it
+// does not descend past the walker's depth limit.
+func (w *Walker) Fields(v any) iter.Seq[FieldContext] {
+	return func(yield func(FieldContext) bool) {
+		run := walk{Walker: w, registry: w.registry.Load(), ctx: context.Background(), yield: yield}
+		_ = run.start(reflect.ValueOf(v))
+	}
+}
+
+var defaultWalker = New()
+
+// Fields returns an iterator over the fields of v without setting up a
+// Walker first:
+//
+//	for f := range structwalker.Fields(&cfg) {
+//	    if tag, ok := f.Lookup("env"); ok {
+//	        ...
+//	    }
+//	}
+//
+// See Walker.Fields for the details. Options apply to this call only.
+func Fields(v any, opts ...WalkerOption) iter.Seq[FieldContext] {
+	if len(opts) == 0 {
+		return defaultWalker.Fields(v)
+	}
+	return New(opts...).Fields(v)
+}
+
+var errStopIteration = errors.New("stop iteration")
 
 // walk is the state of a single Walk call.
 type walk struct {
@@ -103,6 +126,22 @@ type walk struct {
 	root     visit
 	visited  map[visit]struct{}
 	errs     []*WalkError
+	yield    func(FieldContext) bool
+}
+
+func (w *walk) start(v reflect.Value) error {
+	for v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			return nil
+		}
+		w.root = visit{v.Type(), v.UnsafePointer()}
+		v = v.Elem()
+	}
+
+	if v.Kind() != reflect.Struct {
+		return fmt.Errorf("structwalker: expected struct, got %s", v.Kind())
+	}
+	return w.structFields(v, "", 0)
 }
 
 // visit identifies a pointer, slice or map the walk is currently inside. The
@@ -132,6 +171,9 @@ func (w *walk) enter(v reflect.Value) (visit, bool) {
 // report handles an error according to the walker's error mode. A non-nil
 // result stops the walk.
 func (w *walk) report(err *WalkError) error {
+	if w.yield != nil {
+		return nil
+	}
 	if w.opts.errorMode == CollectErrors {
 		w.errs = append(w.errs, err)
 		return nil
@@ -162,6 +204,18 @@ func (w *walk) structFields(v reflect.Value, basePath string, depth int) error {
 			Index:   fp.index,
 			Walker:  w.Walker,
 			ctx:     w.ctx,
+		}
+
+		if w.yield != nil {
+			if fp.visit && !w.yield(fc) {
+				return errStopIteration
+			}
+			if fp.descend {
+				if err := w.descend(fc.Value, fc.Path, depth); err != nil {
+					return err
+				}
+			}
+			continue
 		}
 
 		skipChildren, err := w.dispatch(fp.before, fc)

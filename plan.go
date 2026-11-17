@@ -49,6 +49,7 @@ type fieldPlan struct {
 	tags    []Tag
 	before  []step
 	after   []step
+	visit   bool
 	descend bool
 }
 
@@ -75,6 +76,7 @@ func (r *registry) build(t reflect.Type, opts *walkerOptions) *typePlan {
 
 		switch {
 		case sf.IsExported() || opts.unexported:
+			fp.visit = true
 			fp.tags = parseStructTag(sf.Tag, opts.tagParser)
 			fp.before, fp.after = r.steps(fp.tags)
 		case sf.Anonymous && fp.descend:
