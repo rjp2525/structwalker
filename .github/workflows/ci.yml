@@ -9,32 +9,40 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
-    name: Test
+    name: Test (Go ${{ matrix.go }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ["1.26", "1.27"]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
-          go-version: "1.26"
+          go-version: ${{ matrix.go }}
 
       - name: Run tests
-        run: go test -v -race -count=1 ./...
+        run: go test -race -count=1 ./...
 
-      - name: Run benchmarks
-        run: go test -bench=. -benchmem -count=1 -run=^$ ./...
+      - name: Run benchmarks once
+        run: go test -bench=. -benchtime=1x -run='^$' ./...
 
   lint:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
-          go-version: "1.26"
+          go-version: "1.27"
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
@@ -46,24 +54,27 @@ jobs:
           go mod tidy
           git diff --exit-code go.mod
 
+      - name: Verify go fix has nothing to do
+        run: test -z "$(go fix -diff ./...)"
+
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
-          go-version: "1.26"
+          go-version: "1.27"
 
       - name: Generate coverage
         run: go test -coverprofile=coverage.out -covermode=atomic ./...
 
       - name: Check coverage threshold
         run: |
-          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          COVERAGE=$(go tool cover -func=coverage.out | awk '/^total:/ {sub("%", "", $3); print $3}')
           echo "Total coverage: ${COVERAGE}%"
-          if (( $(echo "$COVERAGE < 80" | bc -l) )); then
-            echo "Coverage ${COVERAGE}% is below 80% threshold"
+          awk -v c="$COVERAGE" 'BEGIN { exit !(c >= 80) }' || {
+            echo "Coverage ${COVERAGE}% is below the 80% threshold"
             exit 1
-          fi
+          }
