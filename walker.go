@@ -1,11 +1,15 @@
 package structwalker
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
+	"strconv"
 	"sync"
 	"sync/atomic"
+	"unsafe"
 )
 
 // Walker walks structs and calls the handlers registered on it. Create one
@@ -55,10 +59,12 @@ func (w *Walker) Walk(v any) error {
 
 // WalkValue processes a reflect.Value directly.
 func (w *Walker) WalkValue(v reflect.Value) error {
+	run := walk{Walker: w, registry: w.registry.Load()}
 	for v.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			return nil
 		}
+		run.root = visit{v.Type(), v.UnsafePointer()}
 		v = v.Elem()
 	}
 
@@ -66,10 +72,6 @@ func (w *Walker) WalkValue(v reflect.Value) error {
 		return fmt.Errorf("structwalker: expected struct, got %s", v.Kind())
 	}
 
-	run := walk{Walker: w, registry: w.registry.Load()}
-	if w.opts.followPointers {
-		run.visited = make(map[uintptr]bool)
-	}
 	if err := run.structFields(v, "", 0); err != nil {
 		return err
 	}
@@ -83,8 +85,33 @@ func (w *Walker) WalkValue(v reflect.Value) error {
 type walk struct {
 	*Walker
 	registry *registry
-	visited  map[uintptr]bool
+	root     visit
+	visited  map[visit]struct{}
 	errs     []*WalkError
+}
+
+// visit identifies a pointer, slice or map the walk is currently inside. The
+// type is part of the key because a struct and its first field share an address.
+type visit struct {
+	typ reflect.Type
+	ptr unsafe.Pointer
+}
+
+// enter marks v as being walked. It reports false when the walk is already
+// inside v, which means v is part of a cycle.
+func (w *walk) enter(v reflect.Value) (visit, bool) {
+	key := visit{v.Type(), v.UnsafePointer()}
+	if key == w.root {
+		return key, false
+	}
+	if _, seen := w.visited[key]; seen {
+		return key, false
+	}
+	if w.visited == nil {
+		w.visited = make(map[visit]struct{})
+	}
+	w.visited[key] = struct{}{}
+	return key, true
 }
 
 // report handles an error according to the walker's error mode. A non-nil
@@ -129,8 +156,8 @@ func (w *walk) structFields(v reflect.Value, basePath string, depth int) error {
 			return err
 		}
 
-		if !skipChildren {
-			if err := w.recurse(fc.Value, fp, fc.Path, depth); err != nil {
+		if !skipChildren && fp.descend {
+			if err := w.descend(fc.Value, fc.Path, depth); err != nil {
 				return err
 			}
 		}
@@ -170,65 +197,96 @@ func (w *walk) dispatch(steps []step, fc FieldContext) (skipChildren bool, err e
 	return skipChildren, nil
 }
 
-func (w *walk) recurse(fieldVal reflect.Value, fp *fieldPlan, path string, depth int) error {
-	val := fieldVal
-	if fp.isPtr && w.opts.followPointers {
-		if val.IsNil() {
+// descend walks whatever structs can be reached from v. The path and depth are
+// those of the field v came from.
+func (w *walk) descend(v reflect.Value, path string, depth int) error {
+	switch v.Kind() {
+	case reflect.Pointer:
+		if !w.opts.followPointers || v.IsNil() {
 			return nil
 		}
-		val = val.Elem()
-
-		ptr := fieldVal.Pointer()
-		if w.visited[ptr] {
+		key, ok := w.enter(v)
+		if !ok {
 			return nil
 		}
-		w.visited[ptr] = true
-		defer delete(w.visited, ptr)
-	}
+		defer delete(w.visited, key)
+		return w.descend(v.Elem(), path, depth)
 
-	if val.Kind() == reflect.Struct && ((fp.isStruct && !fp.isPtr) || (fp.isPtr && w.opts.followPointers)) {
-		return w.structFields(val, path, depth+1)
-	}
-
-	if fp.isSlice && w.opts.sliceElements {
-		for i := range val.Len() {
-			if err := w.element(val.Index(i), fmt.Sprintf("%s[%d]", path, i), depth); err != nil {
-				return err
-			}
+	case reflect.Interface:
+		if !w.opts.interfaces || v.IsNil() {
+			return nil
 		}
-	}
+		return w.descend(v.Elem(), path, depth)
 
-	if fp.isMap && w.opts.mapEntries {
-		for iter := val.MapRange(); iter.Next(); {
-			if err := w.element(iter.Value(), fmt.Sprintf("%s[%v]", path, iter.Key().Interface()), depth); err != nil {
-				return err
-			}
+	case reflect.Struct:
+		if _, leaf := w.opts.leafTypes[v.Type()]; leaf {
+			return nil
 		}
-	}
+		return w.structFields(v, path, depth+1)
 
+	case reflect.Array:
+		if !w.opts.sliceElements {
+			return nil
+		}
+		return w.elements(v, path, depth)
+
+	case reflect.Slice:
+		if !w.opts.sliceElements || v.Len() == 0 {
+			return nil
+		}
+		key, ok := w.enter(v)
+		if !ok {
+			return nil
+		}
+		defer delete(w.visited, key)
+		return w.elements(v, path, depth)
+
+	case reflect.Map:
+		if !w.opts.mapEntries || v.Len() == 0 {
+			return nil
+		}
+		key, ok := w.enter(v)
+		if !ok {
+			return nil
+		}
+		defer delete(w.visited, key)
+		return w.entries(v, path, depth)
+	}
 	return nil
 }
 
-func (w *walk) element(elem reflect.Value, path string, depth int) error {
-	if elem.Kind() == reflect.Pointer {
-		if elem.IsNil() {
-			return nil
+func (w *walk) elements(v reflect.Value, path string, depth int) error {
+	for i := range v.Len() {
+		if err := w.descend(v.Index(i), path+"["+strconv.Itoa(i)+"]", depth); err != nil {
+			return err
 		}
-		if w.visited != nil {
-			ptr := elem.Pointer()
-			if w.visited[ptr] {
-				return nil
-			}
-			w.visited[ptr] = true
-			defer delete(w.visited, ptr)
-		}
-		elem = elem.Elem()
-	}
-
-	if elem.Kind() == reflect.Struct {
-		return w.structFields(elem, path, depth+1)
 	}
 	return nil
+}
+
+func (w *walk) entries(v reflect.Value, path string, depth int) error {
+	keys := v.MapKeys()
+	slices.SortFunc(keys, compareMapKeys)
+	for _, key := range keys {
+		if err := w.descend(v.MapIndex(key), fmt.Sprintf("%s[%v]", path, key), depth); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func compareMapKeys(a, b reflect.Value) int {
+	switch {
+	case a.Kind() == reflect.String:
+		return cmp.Compare(a.String(), b.String())
+	case a.CanInt():
+		return cmp.Compare(a.Int(), b.Int())
+	case a.CanUint():
+		return cmp.Compare(a.Uint(), b.Uint())
+	case a.CanFloat():
+		return cmp.Compare(a.Float(), b.Float())
+	}
+	return cmp.Compare(fmt.Sprint(a), fmt.Sprint(b))
 }
 
 func joinPath(base, name string) string {
