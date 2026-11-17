@@ -96,7 +96,10 @@ func WithErrorMode(mode ErrorMode) WalkerOption {
 	return func(o *walkerOptions) { o.errorMode = mode }
 }
 
-// WithContext attaches a context for cancellation support during walks.
+// WithContext sets the context used by Walk and WalkValue.
+//
+// Deprecated: a context stored on the walker is shared by every walk, so one
+// deadline ends them all. Pass a context per walk with WalkContext instead.
 func WithContext(ctx context.Context) WalkerOption {
 	return func(o *walkerOptions) { o.ctx = ctx }
 }
