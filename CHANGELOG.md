@@ -10,6 +10,8 @@ Every notable change to structwalker is listed here. Versions follow [semantic v
 - `PanicError`. `WithRecovery` returns one with the panic value and the stack, so you can log where a handler blew up. If the handler panicked with an error, `errors.Is` and `errors.As` see through to it. ([#4](https://github.com/rjp2525/structwalker/pull/4))
 - `WithInterfaces(true)` lets the walker look inside interface fields and visit the struct or pointer an `any` is holding. ([#5](https://github.com/rjp2525/structwalker/pull/5))
 - `WithLeafTypes` names struct types the walker should treat as plain values, such as a decimal or a UUID type. Handlers still run on the field. `time.Time` is a leaf out of the box. ([#5](https://github.com/rjp2525/structwalker/pull/5))
+- `WalkContext` and `WalkValueContext` take a context per walk. One walker can serve many requests, each with its own deadline. ([#6](https://github.com/rjp2525/structwalker/pull/6))
+- `FieldContext.Context()` gives handlers the walk's context, so a handler that calls a database or an API can pass it along. ([#6](https://github.com/rjp2525/structwalker/pull/6))
 
 ### Changed
 
@@ -38,6 +40,10 @@ Every notable change to structwalker is listed here. Versions follow [semantic v
 - Exported fields of an unexported embedded struct are visited and can be set, the same way `encoding/json` treats them. They used to be skipped. ([#5](https://github.com/rjp2525/structwalker/pull/5))
 - A pointer to a struct's first field is no longer mistaken for a cycle back to the struct. ([#5](https://github.com/rjp2525/structwalker/pull/5))
 - Walking an unexported map field with `WithUnexported` and `WithMapEntries` no longer panics. ([#5](https://github.com/rjp2525/structwalker/pull/5))
+
+### Deprecated
+
+- `WithContext`. It still works, but a context stored on the walker is shared by every walk and a single expired deadline ends them all. Use `WalkContext`. ([#6](https://github.com/rjp2525/structwalker/pull/6))
 
 ### Project
 

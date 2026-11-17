@@ -1,6 +1,7 @@
 package structwalker
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -18,6 +19,16 @@ type FieldContext struct {
 	Parent  reflect.Value
 	Index   int
 	Walker  *Walker
+
+	ctx context.Context
+}
+
+// Context returns the context the walk was started with. It is never nil.
+func (fc FieldContext) Context() context.Context {
+	if fc.ctx == nil {
+		return context.Background()
+	}
+	return fc.ctx
 }
 
 // SetValue sets the field value with automatic type coercion.

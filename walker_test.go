@@ -307,7 +307,7 @@ func TestWalk_ContextCancellation(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	w := New(WithContext(ctx))
+	w := New(WithContext(ctx)) //nolint:staticcheck // the deprecated option still has to work
 	w.Handle("tag", func(fc FieldContext) error {
 		cancel()
 		return nil

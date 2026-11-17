@@ -2,6 +2,7 @@ package structwalker
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -52,14 +53,27 @@ func (w *Walker) update(fn func(*registry) *registry) {
 	w.registry.Store(fn(w.registry.Load()))
 }
 
-// Walk processes the given struct. Pass a pointer for fields to be settable.
+// Walk visits every field of the struct v points to and runs the handlers
+// that apply. Pass a pointer if handlers need to set fields.
 func (w *Walker) Walk(v any) error {
-	return w.WalkValue(reflect.ValueOf(v))
+	return w.WalkValueContext(w.opts.ctx, reflect.ValueOf(v))
 }
 
-// WalkValue processes a reflect.Value directly.
+// WalkContext is Walk with a context. The walk stops with ctx.Err() once ctx
+// is done and handlers can read ctx from FieldContext.Context.
+func (w *Walker) WalkContext(ctx context.Context, v any) error {
+	return w.WalkValueContext(ctx, reflect.ValueOf(v))
+}
+
+// WalkValue is Walk for a value you already hold as a reflect.Value.
 func (w *Walker) WalkValue(v reflect.Value) error {
-	run := walk{Walker: w, registry: w.registry.Load()}
+	return w.WalkValueContext(w.opts.ctx, v)
+}
+
+// WalkValueContext is WalkContext for a value you already hold as a
+// reflect.Value.
+func (w *Walker) WalkValueContext(ctx context.Context, v reflect.Value) error {
+	run := walk{Walker: w, registry: w.registry.Load(), ctx: ctx}
 	for v.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			return nil
@@ -85,6 +99,7 @@ func (w *Walker) WalkValue(v reflect.Value) error {
 type walk struct {
 	*Walker
 	registry *registry
+	ctx      context.Context
 	root     visit
 	visited  map[visit]struct{}
 	errs     []*WalkError
@@ -132,7 +147,7 @@ func (w *walk) structFields(v reflect.Value, basePath string, depth int) error {
 	plan := w.registry.plan(v.Type(), &w.opts)
 
 	for i := range plan.fields {
-		if err := w.opts.ctx.Err(); err != nil {
+		if err := w.ctx.Err(); err != nil {
 			return err
 		}
 
@@ -146,6 +161,7 @@ func (w *walk) structFields(v reflect.Value, basePath string, depth int) error {
 			Parent:  v,
 			Index:   fp.index,
 			Walker:  w.Walker,
+			ctx:     w.ctx,
 		}
 
 		skipChildren, err := w.dispatch(fp.before, fc)
