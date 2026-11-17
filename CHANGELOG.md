@@ -8,6 +8,8 @@ Every notable change to structwalker is listed here. Versions follow [semantic v
 
 - `ErrMaxDepth`. Hitting the depth limit now returns a `*WalkError` you can test with `errors.Is(err, structwalker.ErrMaxDepth)`, with the path where the walk stopped descending. ([#4](https://github.com/rjp2525/structwalker/pull/4))
 - `PanicError`. `WithRecovery` returns one with the panic value and the stack, so you can log where a handler blew up. If the handler panicked with an error, `errors.Is` and `errors.As` see through to it. ([#4](https://github.com/rjp2525/structwalker/pull/4))
+- `WithInterfaces(true)` lets the walker look inside interface fields and visit the struct or pointer an `any` is holding. ([#5](https://github.com/rjp2525/structwalker/pull/5))
+- `WithLeafTypes` names struct types the walker should treat as plain values, such as a decimal or a UUID type. Handlers still run on the field. `time.Time` is a leaf out of the box. ([#5](https://github.com/rjp2525/structwalker/pull/5))
 
 ### Changed
 
@@ -16,6 +18,9 @@ Every notable change to structwalker is listed here. Versions follow [semantic v
 - Walks are much cheaper. Handlers are sorted and wrapped in middleware once per struct type instead of on every field. A flat six-field struct went from 844ns and 10 allocations to 227ns and 1 on an M-series laptop. ([#3](https://github.com/rjp2525/structwalker/pull/3))
 - `MultiError.Error()` no longer ends with a newline and no longer repeats the `structwalker:` prefix on every line. ([#4](https://github.com/rjp2525/structwalker/pull/4))
 - A recovered panic reads `structwalker: Name (tag "x"): panic: boom`. The path and tag used to appear twice. ([#4](https://github.com/rjp2525/structwalker/pull/4))
+- `WithSliceElements` and `WithMapEntries` reach structs at any nesting: `[][]Item`, `map[string][]*Item`, `*[]Item`, `**Item` and arrays all work. Only one level of slice or map was walked before. ([#5](https://github.com/rjp2525/structwalker/pull/5))
+- Map entries are visited in key order, so paths, handler calls and collected errors come out the same on every run. ([#5](https://github.com/rjp2525/structwalker/pull/5))
+- A flat struct now walks with zero allocations. ([#5](https://github.com/rjp2525/structwalker/pull/5))
 
 ### Fixed
 
@@ -28,6 +33,11 @@ Every notable change to structwalker is listed here. Versions follow [semantic v
 - `CollectErrors` keeps going after a failing slice element or map entry. It used to stop at the first one. ([#4](https://github.com/rjp2525/structwalker/pull/4))
 - In `CollectErrors` mode a struct that is nested too deep is reported and the rest of the walk carries on. ([#4](https://github.com/rjp2525/structwalker/pull/4))
 - `WithLogging` no longer logs `ErrSkipField` and `ErrSkipChildren` as handler errors. ([#4](https://github.com/rjp2525/structwalker/pull/4))
+- A struct that points back to the value passed to `Walk` is no longer walked a second time before the cycle is noticed. ([#5](https://github.com/rjp2525/structwalker/pull/5))
+- `WithFollowPointers(false)` is respected inside slices and maps. Pointer elements used to be followed regardless. ([#5](https://github.com/rjp2525/structwalker/pull/5))
+- Exported fields of an unexported embedded struct are visited and can be set, the same way `encoding/json` treats them. They used to be skipped. ([#5](https://github.com/rjp2525/structwalker/pull/5))
+- A pointer to a struct's first field is no longer mistaken for a cycle back to the struct. ([#5](https://github.com/rjp2525/structwalker/pull/5))
+- Walking an unexported map field with `WithUnexported` and `WithMapEntries` no longer panics. ([#5](https://github.com/rjp2525/structwalker/pull/5))
 
 ### Project
 
