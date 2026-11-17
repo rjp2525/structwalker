@@ -10,25 +10,18 @@ import (
 // Middleware wraps handler execution for cross-cutting concerns.
 type Middleware func(ctx FieldContext, next HandlerFunc) error
 
-// Use adds middleware to the walker's chain, executed in the order added.
+// Use adds middleware around every handler, including handlers registered
+// before the call. The first middleware added is the outermost.
 func (w *Walker) Use(mw ...Middleware) {
-	w.middleware = append(w.middleware, mw...)
+	w.update(func(r *registry) *registry { return r.withMiddleware(mw) })
 }
 
-func (w *Walker) chain(fn HandlerFunc) HandlerFunc {
-	if len(w.middleware) == 0 {
-		return fn
+func chain(fn HandlerFunc, middleware []Middleware) HandlerFunc {
+	for _, mw := range slices.Backward(middleware) {
+		next := fn
+		fn = func(ctx FieldContext) error { return mw(ctx, next) }
 	}
-
-	h := fn
-	for _, mw := range slices.Backward(w.middleware) {
-
-		next := h
-		h = func(ctx FieldContext) error {
-			return mw(ctx, next)
-		}
-	}
-	return h
+	return fn
 }
 
 // WithLogging returns middleware that logs field visits at debug level.

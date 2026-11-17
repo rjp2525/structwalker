@@ -1,112 +1,52 @@
 package structwalker
 
-import "sort"
-
-// HandlerFunc is the callback signature for tag processors.
+// HandlerFunc is called for every field a handler applies to.
 type HandlerFunc func(ctx FieldContext) error
 
-// Phase determines when a handler runs relative to child field processing.
+// Phase determines when a handler runs relative to a field's children.
 type Phase int
 
 const (
-	// BeforeChildren runs the handler before recursing into nested struct fields.
+	// BeforeChildren runs the handler before the walker descends into the field.
 	BeforeChildren Phase = iota
-	// AfterChildren runs the handler after nested struct fields have been processed.
+	// AfterChildren runs the handler once the field's children have been walked.
 	AfterChildren
 )
 
-// HandlerOption configures individual handler behavior.
-type HandlerOption func(*handlerConfig)
+const defaultPriority = 100
 
-// WithPriority sets execution order (lower runs first). Default: 100.
+// HandlerOption configures a single handler registration.
+type HandlerOption func(*handler)
+
+// WithPriority sets when the handler runs relative to the other handlers on a
+// field. Lower runs first and the default is 100.
 func WithPriority(p int) HandlerOption {
-	return func(c *handlerConfig) {
-		c.priority = p
-	}
+	return func(h *handler) { h.priority = p }
 }
 
 // WithFilter restricts the handler to fields where fn returns true.
 func WithFilter(fn func(FieldContext) bool) HandlerOption {
-	return func(c *handlerConfig) {
-		c.filter = fn
-	}
+	return func(h *handler) { h.filter = fn }
 }
 
-// WithPhase sets when the handler runs relative to child processing.
+// WithPhase sets when the handler runs relative to the field's children.
 func WithPhase(phase Phase) HandlerOption {
-	return func(c *handlerConfig) {
-		c.phase = phase
-	}
+	return func(h *handler) { h.phase = phase }
 }
 
-type handlerConfig struct {
+type handler struct {
+	key      string
+	global   bool
+	fn       HandlerFunc
 	priority int
 	phase    Phase
 	filter   func(FieldContext) bool
 }
 
-func buildConfig(opts []HandlerOption) handlerConfig {
-	cfg := handlerConfig{priority: 100}
+func newHandler(key string, global bool, fn HandlerFunc, opts []HandlerOption) handler {
+	h := handler{key: key, global: global, fn: fn, priority: defaultPriority}
 	for _, opt := range opts {
-		opt(&cfg)
+		opt(&h)
 	}
-	return cfg
-}
-
-type handlerEntry struct {
-	fn     HandlerFunc
-	config handlerConfig
-}
-
-type handlerRegistry struct {
-	tagged map[string][]handlerEntry
-	global []handlerEntry
-	keys_  []string // cached key list, invalidated on add
-}
-
-func newHandlerRegistry() *handlerRegistry {
-	return &handlerRegistry{
-		tagged: make(map[string][]handlerEntry),
-	}
-}
-
-func (r *handlerRegistry) add(tagKey string, fn HandlerFunc, opts ...HandlerOption) {
-	r.tagged[tagKey] = append(r.tagged[tagKey], handlerEntry{fn: fn, config: buildConfig(opts)})
-	r.keys_ = nil
-}
-
-func (r *handlerRegistry) addGlobal(fn HandlerFunc, opts ...HandlerOption) {
-	r.global = append(r.global, handlerEntry{fn: fn, config: buildConfig(opts)})
-}
-
-func (r *handlerRegistry) keys() []string {
-	if r.keys_ != nil {
-		return r.keys_
-	}
-	r.keys_ = make([]string, 0, len(r.tagged))
-	for k := range r.tagged {
-		r.keys_ = append(r.keys_, k)
-	}
-	return r.keys_
-}
-
-func filterByPhase(entries []handlerEntry, phase Phase) []handlerEntry {
-	var filtered []handlerEntry
-	for _, e := range entries {
-		if e.config.phase == phase {
-			filtered = append(filtered, e)
-		}
-	}
-	sort.Slice(filtered, func(i, j int) bool {
-		return filtered[i].config.priority < filtered[j].config.priority
-	})
-	return filtered
-}
-
-func (r *handlerRegistry) entriesForPhase(tagKey string, phase Phase) []handlerEntry {
-	return filterByPhase(r.tagged[tagKey], phase)
-}
-
-func (r *handlerRegistry) globalForPhase(phase Phase) []handlerEntry {
-	return filterByPhase(r.global, phase)
+	return h
 }

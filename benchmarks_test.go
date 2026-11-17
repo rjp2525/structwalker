@@ -129,14 +129,14 @@ func BenchmarkRawReflection(b *testing.B) {
 	}
 }
 
-func BenchmarkTypeCache_Hit(b *testing.B) {
-	cache := newTypeCache()
-	keys := []string{"json", "validate"}
+func BenchmarkPlan_Hit(b *testing.B) {
+	w := New()
+	w.Handle("json", func(FieldContext) error { return nil })
+	r := w.registry.Load()
 	t := reflect.TypeFor[BenchStruct]()
-	cache.get(t, keys, nil) // warm up
+	r.plan(t, &w.opts)
 
-	b.ResetTimer()
 	for b.Loop() {
-		cache.get(t, keys, nil)
+		r.plan(t, &w.opts)
 	}
 }
