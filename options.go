@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// ErrorMode controls how the walker handles errors from handlers.
+// ErrorMode decides what the walker does when a handler returns an error.
 type ErrorMode int
 
 const (
@@ -40,7 +40,7 @@ func defaultOptions() walkerOptions {
 	}
 }
 
-// WalkerOption configures walker behavior via functional options.
+// WalkerOption configures a Walker. Pass options to New.
 type WalkerOption func(*walkerOptions)
 
 // WithMaxDepth limits how deep structs may nest. Fields of the struct passed
@@ -91,7 +91,8 @@ func WithLeafTypes(types ...reflect.Type) WalkerOption {
 	}
 }
 
-// WithErrorMode sets the error handling strategy for the walk.
+// WithErrorMode sets what happens when a handler returns an error. The
+// default is StopOnError.
 func WithErrorMode(mode ErrorMode) WalkerOption {
 	return func(o *walkerOptions) { o.errorMode = mode }
 }
@@ -104,7 +105,9 @@ func WithContext(ctx context.Context) WalkerOption {
 	return func(o *walkerOptions) { o.ctx = ctx }
 }
 
-// WithTagParser overrides the default CSV-based tag parsing logic.
+// WithTagParser replaces ParseTag for tags that use a different syntax. fn
+// receives a tag key and its unquoted value and is called once per field per
+// struct type.
 func WithTagParser(fn func(key, raw string) Tag) WalkerOption {
 	return func(o *walkerOptions) { o.tagParser = fn }
 }

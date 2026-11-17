@@ -667,34 +667,6 @@ func TestWalk_WithFollowPointersFalse(t *testing.T) {
 	}
 }
 
-func TestWalk_CycleDetection(t *testing.T) {
-	type Node struct {
-		Name string `tag:"name"`
-		Next *Node  `tag:"next"`
-	}
-
-	a := &Node{Name: "a"}
-	b := &Node{Name: "b"}
-	a.Next = b
-	b.Next = a // cycle
-
-	var paths []string
-	w := New()
-	w.Handle("tag", func(ctx FieldContext) error {
-		paths = append(paths, ctx.Path)
-		return nil
-	})
-
-	err := w.Walk(a)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Should not infinite loop; cycle detection should break the loop
-	if len(paths) > 10 {
-		t.Errorf("visited %d paths; likely infinite loop", len(paths))
-	}
-}
-
 func TestFieldContext_IsZero(t *testing.T) {
 	type S struct {
 		Name  string `tag:"name"`

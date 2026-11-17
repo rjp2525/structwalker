@@ -5,17 +5,29 @@ import (
 	"reflect"
 )
 
-// FieldContext is passed to every handler invocation with full field metadata.
+// FieldContext describes the field a handler is being called for.
 type FieldContext struct {
-	Tag     Tag
+	// Tag is the tag the handler was registered for. It is empty for HandleAll
+	// handlers and in Fields loops, where Lookup reads tags by key.
+	Tag Tag
+	// AllTags is every tag on the field, in the order they are written.
 	AllTags []Tag
-	Field   reflect.StructField
-	Value   reflect.Value
-	Path    string
-	Depth   int
-	Parent  reflect.Value
-	Index   int
-	Walker  *Walker
+	// Field is the field's reflection metadata.
+	Field reflect.StructField
+	// Value is the field's value. It is settable when Walk was given a pointer.
+	Value reflect.Value
+	// Path locates the field from the root, such as "Address.Street",
+	// "Items[2].Name" or "Limits[eu].Max".
+	Path string
+	// Depth is how many structs deep the field is. Fields of the struct passed
+	// to Walk are at depth 0.
+	Depth int
+	// Parent is the struct that holds the field.
+	Parent reflect.Value
+	// Index is the field's position in Parent.
+	Index int
+	// Walker is the walker running this walk.
+	Walker *Walker
 
 	ctx context.Context
 }
@@ -44,7 +56,8 @@ func (fc FieldContext) IsZero() bool {
 	return fc.Value.IsZero()
 }
 
-// IsNil reports whether the field is a nil pointer, slice, map, or interface.
+// IsNil reports whether the field is a nil pointer, interface, slice, map,
+// channel or func. It is false for every other kind.
 func (fc FieldContext) IsNil() bool {
 	switch fc.Value.Kind() {
 	case reflect.Pointer, reflect.Slice, reflect.Map, reflect.Interface, reflect.Chan, reflect.Func:

@@ -7,7 +7,8 @@ import (
 	"time"
 )
 
-// Middleware wraps handler execution for cross-cutting concerns.
+// Middleware wraps a handler call. Call next to continue, or return without
+// calling it to keep the handler from running.
 type Middleware func(ctx FieldContext, next HandlerFunc) error
 
 // Use adds middleware around every handler, including handlers registered
