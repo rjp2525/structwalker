@@ -18,6 +18,7 @@ Every notable change to structwalker is listed here. Versions follow [semantic v
 - Single quotes keep a comma inside a tag value: `validate:"role,oneof='admin,editor'"` gives the option `oneof` the value `admin,editor`. The quotes are stripped. An apostrophe in the middle of a value is left alone. ([#8](https://github.com/rjp2525/structwalker/pull/8))
 - `FieldContext.Lookup(key)` returns another tag on the same field. A `validate` handler can use it to report the field's `json` name. ([#8](https://github.com/rjp2525/structwalker/pull/8))
 - `Fields`, an iterator over a struct's fields for when you just want a loop. `for f := range structwalker.Fields(&cfg)` visits everything `Walk` would with the same `FieldContext`. `break` stops it. No walker, handlers or error plumbing needed. `Walker.Fields` does the same with a walker's options. ([#9](https://github.com/rjp2525/structwalker/pull/9))
+- A documentation site at [structwalker.reno.sh](https://structwalker.reno.sh) with guides for every feature and six worked recipes: defaults, config from the environment, validation, redaction, struct mapping and diffs. ([#12](https://github.com/rjp2525/structwalker/pull/12))
 
 ### Changed
 
@@ -64,6 +65,8 @@ Every notable change to structwalker is listed here. Versions follow [semantic v
 - Dependabot keeps the GitHub Actions up to date. ([#2](https://github.com/rjp2525/structwalker/pull/2))
 - Release notes are taken from this file, so a tag without a changelog section fails the release. ([#2](https://github.com/rjp2525/structwalker/pull/2))
 - A fuzz test compares `ParseAllTags` with the standard library. ([#8](https://github.com/rjp2525/structwalker/pull/8))
+- The recipes in the docs are runnable examples in `example_recipes_test.go`, so CI fails if one stops working. ([#12](https://github.com/rjp2525/structwalker/pull/12))
+- The site is built by a small Go program in `website/`. It is its own module, so the library still has no dependencies. ([#12](https://github.com/rjp2525/structwalker/pull/12))
 
 ## v1.0.0
 

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>{{template "head" .}}</head>
+<body>
+<div class="frame">
+  {{template "header" .}}
+  <div class="workspace">
+    {{template "sidebar" .}}
+    <div class="scrim" data-menu-close></div>
+    <main class="pane pane-home" data-pane>
+      <div class="glow glow-green"></div>
+      <div class="glow glow-blue"></div>
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="hero-kicker">Give your struct tags a job.</p>
+          <h1>structwalker</h1>
+          <p class="hero-type"><span>&gt; walk any struct, act on its tags</span></p>
+          <p class="hero-text">Every Go project rewrites the same reflection loop for defaults, validation and redaction. This is that loop, written once. You say what a tag means and it does the walking.</p>
+          <div class="hero-code">
+            <p class="c">// add it to your module</p>
+            <p><span class="k">$</span> go get <span class="s">github.com/rjp2525/structwalker</span></p>
+            <p class="c">// standard library only</p>
+            <p><span class="k">const</span> <span class="v">dependencies</span> = <span class="s">0</span></p>
+          </div>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="/docs/quick-start/">quick-start</a>
+            <a class="btn" href="/docs/introduction/">read-the-docs</a>
+            <a class="btn btn-ghost" href="{{.RepoURL}}" rel="noopener">github</a>
+          </div>
+        </div>
+        <div class="hero-demo">{{.Page.Body}}</div>
+      </section>
+
+      <section class="grid">
+        <a class="card" href="/docs/handlers/">
+          <span class="card-tag">handlers</span>
+          <h2>One handler per tag</h2>
+          <p>Register what <code>validate</code>, <code>default</code> or <code>mask</code> means. One walk runs them all, in the order you choose.</p>
+        </a>
+        <a class="card" href="/docs/fields/">
+          <span class="card-tag">iterator</span>
+          <h2>Or just a for loop</h2>
+          <p><code>for f := range structwalker.Fields(&amp;cfg)</code> visits every field. Nothing to register and <code>break</code> works.</p>
+        </a>
+        <a class="card" href="/docs/setting-values/">
+          <span class="card-tag">setter</span>
+          <h2>A setter that converts</h2>
+          <p><code>SetValue("30s")</code> fills a <code>time.Duration</code>. Numbers, bools, pointers and text unmarshalers work too. It never stores a value that didn't fit.</p>
+        </a>
+        <a class="card" href="/docs/traversal/">
+          <span class="card-tag">traversal</span>
+          <h2>The whole struct</h2>
+          <p>Nested structs and pointers by default. Slices, maps and interfaces when you ask. Cycles are detected and every field knows its path.</p>
+        </a>
+        <a class="card" href="/docs/errors/">
+          <span class="card-tag">errors</span>
+          <h2>Errors that say where</h2>
+          <p>Stop at the first error or collect them all. Each one carries the field's path, which is most of a validation message.</p>
+        </a>
+        <a class="card" href="/docs/performance/">
+          <span class="card-tag">speed</span>
+          <h2>Fast enough to forget about</h2>
+          <p>Reflection work is cached per type. A flat struct walks in about 200ns with zero allocations and a walker is safe to share.</p>
+        </a>
+      </section>
+
+      <section class="strip">
+        <p class="c">// requirements</p>
+        <p><span class="k">go</span> <span class="s">1.26+</span> &nbsp;·&nbsp; <span class="k">dependencies</span> <span class="s">none</span> &nbsp;·&nbsp; <span class="k">license</span> <span class="s">MIT</span></p>
+      </section>
+    </main>
+  </div>
+  {{template "footer" .}}
+</div>
+{{template "search" .}}
+</body>
+</html>
