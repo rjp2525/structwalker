@@ -12,6 +12,9 @@ Every notable change to structwalker is listed here. Versions follow [semantic v
 - `WithLeafTypes` names struct types the walker should treat as plain values, such as a decimal or a UUID type. Handlers still run on the field. `time.Time` is a leaf out of the box. ([#5](https://github.com/rjp2525/structwalker/pull/5))
 - `WalkContext` and `WalkValueContext` take a context per walk. One walker can serve many requests, each with its own deadline. ([#6](https://github.com/rjp2525/structwalker/pull/6))
 - `FieldContext.Context()` gives handlers the walk's context, so a handler that calls a database or an API can pass it along. ([#6](https://github.com/rjp2525/structwalker/pull/6))
+- `SetValue` parses a string into a `time.Duration` (`default:"30s"` now works on a duration field), a `[]byte` and any type that implements `encoding.TextUnmarshaler`. That covers `time.Time`, `netip.Addr`, `big.Int` and most UUID and decimal types without structwalker knowing about them. ([#7](https://github.com/rjp2525/structwalker/pull/7))
+- `SetValue` fills pointer fields. Setting `"8080"` on a `*int` allocates the int and points the field at it. ([#7](https://github.com/rjp2525/structwalker/pull/7))
+- `ErrNotSettable`, returned by `SetValue` when the field cannot be changed, so a handler can tell that apart from a bad value. ([#7](https://github.com/rjp2525/structwalker/pull/7))
 
 ### Changed
 
@@ -23,6 +26,7 @@ Every notable change to structwalker is listed here. Versions follow [semantic v
 - `WithSliceElements` and `WithMapEntries` reach structs at any nesting: `[][]Item`, `map[string][]*Item`, `*[]Item`, `**Item` and arrays all work. Only one level of slice or map was walked before. ([#5](https://github.com/rjp2525/structwalker/pull/5))
 - Map entries are visited in key order, so paths, handler calls and collected errors come out the same on every run. ([#5](https://github.com/rjp2525/structwalker/pull/5))
 - A flat struct now walks with zero allocations. ([#5](https://github.com/rjp2525/structwalker/pull/5))
+- `SetValue` errors read `field Port: cannot parse "abc" as int: invalid syntax`. They name the field first and no longer include `strconv` internals. ([#7](https://github.com/rjp2525/structwalker/pull/7))
 
 ### Fixed
 
@@ -40,6 +44,8 @@ Every notable change to structwalker is listed here. Versions follow [semantic v
 - Exported fields of an unexported embedded struct are visited and can be set, the same way `encoding/json` treats them. They used to be skipped. ([#5](https://github.com/rjp2525/structwalker/pull/5))
 - A pointer to a struct's first field is no longer mistaken for a cycle back to the struct. ([#5](https://github.com/rjp2525/structwalker/pull/5))
 - Walking an unexported map field with `WithUnexported` and `WithMapEntries` no longer panics. ([#5](https://github.com/rjp2525/structwalker/pull/5))
+- `SetValue(65)` on a string field returned no error and stored `"A"`. Numbers are no longer converted to strings. ([#7](https://github.com/rjp2525/structwalker/pull/7))
+- `SetValue` refuses numbers that do not fit instead of wrapping them. `"300"` into an `int8`, `-1` into a `uint` and `1.5` into an `int` are all errors now and leave the field untouched. ([#7](https://github.com/rjp2525/structwalker/pull/7))
 
 ### Deprecated
 
