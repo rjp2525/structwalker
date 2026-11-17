@@ -70,7 +70,13 @@ func (w *Walker) WalkValue(v reflect.Value) error {
 	if w.opts.followPointers {
 		run.visited = make(map[uintptr]bool)
 	}
-	return run.structFields(v, "", 0)
+	if err := run.structFields(v, "", 0); err != nil {
+		return err
+	}
+	if len(run.errs) > 0 {
+		return &MultiError{Errors: run.errs}
+	}
+	return nil
 }
 
 // walk is the state of a single Walk call.
@@ -78,19 +84,25 @@ type walk struct {
 	*Walker
 	registry *registry
 	visited  map[uintptr]bool
+	errs     []*WalkError
+}
+
+// report handles an error according to the walker's error mode. A non-nil
+// result stops the walk.
+func (w *walk) report(err *WalkError) error {
+	if w.opts.errorMode == CollectErrors {
+		w.errs = append(w.errs, err)
+		return nil
+	}
+	return err
 }
 
 func (w *walk) structFields(v reflect.Value, basePath string, depth int) error {
 	if depth > w.opts.maxDepth {
-		return fmt.Errorf("structwalker: max depth %d exceeded at %s", w.opts.maxDepth, basePath)
+		return w.report(&WalkError{Path: basePath, Err: ErrMaxDepth})
 	}
 
 	plan := w.registry.plan(v.Type(), &w.opts)
-
-	var multi *MultiError
-	if w.opts.errorMode == CollectErrors {
-		multi = &MultiError{}
-	}
 
 	for i := range plan.fields {
 		if err := w.opts.ctx.Err(); err != nil {
@@ -109,7 +121,7 @@ func (w *walk) structFields(v reflect.Value, basePath string, depth int) error {
 			Walker:  w.Walker,
 		}
 
-		skipChildren, err := w.dispatch(fp.before, fc, multi)
+		skipChildren, err := w.dispatch(fp.before, fc)
 		if errors.Is(err, ErrSkipField) {
 			continue
 		}
@@ -119,24 +131,13 @@ func (w *walk) structFields(v reflect.Value, basePath string, depth int) error {
 
 		if !skipChildren {
 			if err := w.recurse(fc.Value, fp, fc.Path, depth); err != nil {
-				if multi == nil {
-					return err
-				}
-				if walkErr, ok := errors.AsType[*WalkError](err); ok {
-					multi.add(walkErr)
-				} else {
-					multi.add(&WalkError{Path: fc.Path, Err: err})
-				}
+				return err
 			}
 		}
 
-		if _, err := w.dispatch(fp.after, fc, multi); err != nil && !errors.Is(err, ErrSkipField) {
+		if _, err := w.dispatch(fp.after, fc); err != nil && !errors.Is(err, ErrSkipField) {
 			return err
 		}
-	}
-
-	if multi != nil && len(multi.Errors) > 0 {
-		return multi
 	}
 	return nil
 }
@@ -144,7 +145,7 @@ func (w *walk) structFields(v reflect.Value, basePath string, depth int) error {
 // dispatch runs a field's handlers for one phase. It returns ErrSkipField as
 // soon as a handler asks for it, and any other error only when that error
 // should stop the walk.
-func (w *walk) dispatch(steps []step, fc FieldContext, multi *MultiError) (skipChildren bool, err error) {
+func (w *walk) dispatch(steps []step, fc FieldContext) (skipChildren bool, err error) {
 	for i := range steps {
 		s := &steps[i]
 		fc.Tag = s.tag
@@ -161,11 +162,9 @@ func (w *walk) dispatch(steps []step, fc FieldContext, multi *MultiError) (skipC
 			skipChildren = true
 		case w.opts.errorMode == SkipOnError:
 		default:
-			walkErr := &WalkError{Path: fc.Path, TagKey: s.tag.Key, Field: fc.Field.Name, Err: err}
-			if multi == nil {
-				return false, walkErr
+			if err := w.report(&WalkError{Path: fc.Path, TagKey: s.tag.Key, Field: fc.Field.Name, Err: err}); err != nil {
+				return false, err
 			}
-			multi.add(walkErr)
 		}
 	}
 	return skipChildren, nil

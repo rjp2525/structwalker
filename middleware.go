@@ -1,8 +1,8 @@
 package structwalker
 
 import (
-	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"slices"
 	"time"
 )
@@ -24,7 +24,8 @@ func chain(fn HandlerFunc, middleware []Middleware) HandlerFunc {
 	return fn
 }
 
-// WithLogging returns middleware that logs field visits at debug level.
+// WithLogging returns middleware that logs each handler call at debug level
+// and each handler error at error level.
 func WithLogging(logger *slog.Logger) Middleware {
 	return func(ctx FieldContext, next HandlerFunc) error {
 		logger.Debug("structwalker: visiting field",
@@ -33,7 +34,7 @@ func WithLogging(logger *slog.Logger) Middleware {
 			"depth", ctx.Depth,
 		)
 		err := next(ctx)
-		if err != nil {
+		if err != nil && !isFlowControl(err) {
 			logger.Error("structwalker: handler error",
 				"path", ctx.Path,
 				"tag", ctx.Tag.Key,
@@ -44,7 +45,7 @@ func WithLogging(logger *slog.Logger) Middleware {
 	}
 }
 
-// WithTiming returns middleware that records handler execution duration.
+// WithTiming returns middleware that reports how long each handler call took.
 func WithTiming(fn func(path string, tagKey string, duration time.Duration)) Middleware {
 	return func(ctx FieldContext, next HandlerFunc) error {
 		start := time.Now()
@@ -54,12 +55,13 @@ func WithTiming(fn func(path string, tagKey string, duration time.Duration)) Mid
 	}
 }
 
-// WithRecovery returns middleware that converts handler panics into errors.
+// WithRecovery returns middleware that turns a handler panic into a
+// *PanicError carrying the panic value and the stack.
 func WithRecovery() Middleware {
-	return func(ctx FieldContext, next HandlerFunc) (retErr error) {
+	return func(ctx FieldContext, next HandlerFunc) (err error) {
 		defer func() {
 			if r := recover(); r != nil {
-				retErr = fmt.Errorf("panic in handler for %s (tag %q): %v", ctx.Path, ctx.Tag.Key, r)
+				err = &PanicError{Value: r, Stack: debug.Stack()}
 			}
 		}()
 		return next(ctx)
