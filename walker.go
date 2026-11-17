@@ -88,7 +88,7 @@ func (w *Walker) WalkValueContext(ctx context.Context, v reflect.Value) error {
 // order. Registered handlers and middleware do not run and FieldContext.Tag is
 // empty, so read tags with FieldContext.Lookup.
 //
-// The iterator yields nothing if v is not a struct or a pointer to one, and it
+// The iterator yields nothing if v is not a struct or a pointer to one. It
 // does not descend past the walker's depth limit.
 func (w *Walker) Fields(v any) iter.Seq[FieldContext] {
 	return func(yield func(FieldContext) bool) {
@@ -240,7 +240,7 @@ func (w *walk) structFields(v reflect.Value, basePath string, depth int) error {
 }
 
 // dispatch runs a field's handlers for one phase. It returns ErrSkipField as
-// soon as a handler asks for it, and any other error only when that error
+// soon as a handler asks for it. Any other error comes back only when it
 // should stop the walk.
 func (w *walk) dispatch(steps []step, fc FieldContext) (skipChildren bool, err error) {
 	for i := range steps {

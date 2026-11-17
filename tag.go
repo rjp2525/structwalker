@@ -37,8 +37,8 @@ func (t Tag) Option(key string) (string, bool) {
 	return v, ok
 }
 
-// OptionOr returns the value of a key=value option, or fallback if the tag
-// does not set it.
+// OptionOr returns the value of a key=value option. It returns fallback if
+// the tag does not set it.
 func (t Tag) OptionOr(key, fallback string) string {
 	if v, ok := t.Options[key]; ok {
 		return v
