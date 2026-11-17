@@ -12,7 +12,7 @@ Every notable change to structwalker is listed here. Versions follow [semantic v
 - `WithLeafTypes` names struct types the walker should treat as plain values, such as a decimal or a UUID type. Handlers still run on the field. `time.Time` is a leaf out of the box. ([#5](https://github.com/rjp2525/structwalker/pull/5))
 - `WalkContext` and `WalkValueContext` take a context per walk. One walker can serve many requests, each with its own deadline. ([#6](https://github.com/rjp2525/structwalker/pull/6))
 - `FieldContext.Context()` gives handlers the walk's context, so a handler that calls a database or an API can pass it along. ([#6](https://github.com/rjp2525/structwalker/pull/6))
-- `SetValue` parses a string into a `time.Duration` (``default:"30s"`` now works on a duration field), a `[]byte` and any type that implements `encoding.TextUnmarshaler`. That covers `time.Time`, `netip.Addr`, `big.Int` and most UUID and decimal types without structwalker knowing about them. ([#7](https://github.com/rjp2525/structwalker/pull/7))
+- `SetValue` parses a string into a `time.Duration` (`default:"30s"` now works on a duration field), a `[]byte` and any type that implements `encoding.TextUnmarshaler`. That covers `time.Time`, `netip.Addr`, `big.Int` and most UUID and decimal types without structwalker knowing about them. ([#7](https://github.com/rjp2525/structwalker/pull/7))
 - `SetValue` fills pointer fields. Setting `"8080"` on a `*int` allocates the int and points the field at it. ([#7](https://github.com/rjp2525/structwalker/pull/7))
 - `ErrNotSettable`, returned by `SetValue` when the field cannot be changed, so a handler can tell that apart from a bad value. ([#7](https://github.com/rjp2525/structwalker/pull/7))
 

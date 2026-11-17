@@ -186,7 +186,7 @@ func TestSetValue_NotSettable(t *testing.T) {
 		opts []WalkerOption
 	}{
 		"struct passed by value": {S{}, "Name", nil},
-		"unexported field":       {&S{}, "hidden", []WalkerOption{WithUnexported(true)}},
+		"unexported field":       {&S{hidden: "x"}, "hidden", []WalkerOption{WithUnexported(true)}},
 		"struct stored in a map": {&S{ByKey: map[string]leaf{"a": {}}}, "ByKey[a].Name", []WalkerOption{WithMapEntries(true)}},
 	}
 
