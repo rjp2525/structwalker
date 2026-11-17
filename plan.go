@@ -44,15 +44,12 @@ type typePlan struct {
 }
 
 type fieldPlan struct {
-	field    reflect.StructField
-	index    int
-	tags     []Tag
-	before   []step
-	after    []step
-	isStruct bool
-	isPtr    bool
-	isSlice  bool
-	isMap    bool
+	field   reflect.StructField
+	index   int
+	tags    []Tag
+	before  []step
+	after   []step
+	descend bool
 }
 
 type step struct {
@@ -74,26 +71,19 @@ func (r *registry) build(t reflect.Type, opts *walkerOptions) *typePlan {
 
 	for i := range t.NumField() {
 		sf := t.Field(i)
-		if !sf.IsExported() && !opts.unexported {
+		fp := fieldPlan{field: sf, index: i, descend: canHoldStruct(sf.Type)}
+
+		switch {
+		case sf.IsExported() || opts.unexported:
+			fp.tags = parseStructTag(sf.Tag, opts.tagParser)
+			fp.before, fp.after = r.steps(fp.tags)
+		case sf.Anonymous && fp.descend:
+			// An unexported embedded struct still promotes its exported
+			// fields, so walk into it without running handlers on it.
+		default:
 			continue
 		}
 
-		elem := sf.Type
-		isPtr := elem.Kind() == reflect.Pointer
-		if isPtr {
-			elem = elem.Elem()
-		}
-
-		fp := fieldPlan{
-			field:    sf,
-			index:    i,
-			tags:     parseStructTag(sf.Tag, opts.tagParser),
-			isStruct: elem.Kind() == reflect.Struct,
-			isPtr:    isPtr,
-			isSlice:  sf.Type.Kind() == reflect.Slice || sf.Type.Kind() == reflect.Array,
-			isMap:    sf.Type.Kind() == reflect.Map,
-		}
-		fp.before, fp.after = r.steps(fp.tags)
 		plan.fields = append(plan.fields, fp)
 	}
 
@@ -142,4 +132,12 @@ func (r *registry) steps(tags []Tag) (before, after []step) {
 		}
 	}
 	return before, after
+}
+
+func canHoldStruct(t reflect.Type) bool {
+	switch t.Kind() {
+	case reflect.Struct, reflect.Pointer, reflect.Interface, reflect.Slice, reflect.Array, reflect.Map:
+		return true
+	}
+	return false
 }

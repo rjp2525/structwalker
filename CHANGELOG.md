@@ -15,7 +15,7 @@ Every notable change to structwalker is listed here. Versions follow [semantic v
 - Handler priority now orders every handler on a field. A `json` handler at priority 10 runs before a `validate` handler at the default 100, and `HandleAll` handlers take part too. Handlers that tie run in the order their tags are written on the field, then `HandleAll` handlers, then registration order. If you only ever used priorities within one tag key, nothing changes. ([#3](https://github.com/rjp2525/structwalker/pull/3))
 - Walks are much cheaper. Handlers are sorted and wrapped in middleware once per struct type instead of on every field. A flat six-field struct went from 844ns and 10 allocations to 227ns and 1 on an M-series laptop. ([#3](https://github.com/rjp2525/structwalker/pull/3))
 - `MultiError.Error()` no longer ends with a newline and no longer repeats the `structwalker:` prefix on every line. ([#4](https://github.com/rjp2525/structwalker/pull/4))
-- A recovered panic reads `structwalker: Name (tag \"x\"): panic: boom`. The path and tag used to appear twice. ([#4](https://github.com/rjp2525/structwalker/pull/4))
+- A recovered panic reads `structwalker: Name (tag "x"): panic: boom`. The path and tag used to appear twice. ([#4](https://github.com/rjp2525/structwalker/pull/4))
 
 ### Fixed
 
