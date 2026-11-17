@@ -61,7 +61,7 @@ func buildTypeMeta(t reflect.Type, handlerKeys []string, tagParser func(string, 
 		}
 
 		ft := sf.Type
-		isPtr := ft.Kind() == reflect.Ptr
+		isPtr := ft.Kind() == reflect.Pointer
 		if isPtr {
 			ft = ft.Elem()
 		}

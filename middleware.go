@@ -3,6 +3,7 @@ package structwalker
 import (
 	"fmt"
 	"log/slog"
+	"slices"
 	"time"
 )
 
@@ -20,8 +21,8 @@ func (w *Walker) chain(fn HandlerFunc) HandlerFunc {
 	}
 
 	h := fn
-	for i := len(w.middleware) - 1; i >= 0; i-- {
-		mw := w.middleware[i]
+	for _, mw := range slices.Backward(w.middleware) {
+
 		next := h
 		h = func(ctx FieldContext) error {
 			return mw(ctx, next)

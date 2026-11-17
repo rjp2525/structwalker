@@ -90,7 +90,7 @@ func TestParseAllTags(t *testing.T) {
 		Name string `json:"name,omitempty" validate:"required,max=100"`
 	}
 
-	sf, _ := reflect.TypeOf(testStruct{}).FieldByName("Name")
+	sf, _ := reflect.TypeFor[testStruct]().FieldByName("Name")
 	tags := ParseAllTags(sf.Tag)
 
 	if len(tags) != 2 {
@@ -120,7 +120,7 @@ func TestParseAllTags_SingleTag(t *testing.T) {
 		ID int `db:"id"`
 	}
 
-	sf, _ := reflect.TypeOf(testStruct{}).FieldByName("ID")
+	sf, _ := reflect.TypeFor[testStruct]().FieldByName("ID")
 	tags := ParseAllTags(sf.Tag)
 
 	if len(tags) != 1 {
