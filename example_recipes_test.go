@@ -147,7 +147,8 @@ func Example_redaction() {
 			return ctx.SetValue("[redacted]")
 		case tag.Name == "last4":
 			s := ctx.Value.String()
-			return ctx.SetValue(strings.Repeat("*", max(len(s)-4, 0)) + s[max(len(s)-4, 0):])
+			keep := max(len(s)-4, 0)
+			return ctx.SetValue(strings.Repeat("*", keep) + s[keep:])
 		}
 		return nil
 	})
@@ -159,7 +160,7 @@ func Example_redaction() {
 	}
 
 	safe := customer
-	safe.Cards = append([]Card(nil), customer.Cards...)
+	safe.Cards = slices.Clone(customer.Cards)
 	if err := w.Walk(&safe); err != nil {
 		fmt.Println(err)
 		return
