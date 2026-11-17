@@ -6,9 +6,12 @@ import "context"
 type ErrorMode int
 
 const (
-	StopOnError   ErrorMode = iota // first error halts the walk
-	CollectErrors                  // collect all errors, return as *MultiError
-	SkipOnError                    // ignore errors, continue walking
+	// StopOnError ends the walk at the first handler error.
+	StopOnError ErrorMode = iota
+	// CollectErrors keeps walking and returns every error as a *MultiError.
+	CollectErrors
+	// SkipOnError drops handler errors and keeps walking.
+	SkipOnError
 )
 
 type walkerOptions struct {
