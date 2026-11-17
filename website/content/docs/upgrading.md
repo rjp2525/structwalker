@@ -1,9 +1,9 @@
 ---
-title: Upgrading to v1.1
+title: Upgrading to v1.2
 description: What changed since v1.0, the handful of behaviours to check and how to move off the one deprecated option.
 ---
 
-v1.1 is a drop-in upgrade. Nothing was removed and no signature changed.
+v1.2 is a drop-in upgrade. Nothing was removed and no signature changed.
 
 ```bash
 go get github.com/rjp2525/structwalker@latest
@@ -22,7 +22,7 @@ w.Handle("validate", validate)                           // 100
 w.Handle("default", setDefault, structwalker.WithPriority(10))
 ```
 
-In v1.0 which ran first depended on the order of the tags on each field. In v1.1 `default` always runs first. If you never mixed priorities across keys, nothing changes.
+In v1.0 which ran first depended on the order of the tags on each field. In v1.2 `default` always runs first. If you never mixed priorities across keys, nothing changes.
 
 ### ErrSkipChildren
 
@@ -32,7 +32,7 @@ It used to stop the remaining tag handlers on the field as well as skipping the 
 
 These used to succeed with the wrong value. They're errors now.
 
-| Call | v1.0 stored | v1.1 |
+| Call | v1.0 stored | v1.2 |
 |---|---|---|
 | `SetValue(65)` on a `string` | `"A"` | error |
 | `SetValue("300")` on an `int8` | `44` | error |
