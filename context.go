@@ -28,6 +28,17 @@ func (fc FieldContext) Context() context.Context {
 	return fc.ctx
 }
 
+// Lookup returns the field's tag for the given key, whichever handler is
+// running. A validate handler can use it to read the field's json name.
+func (fc FieldContext) Lookup(key string) (Tag, bool) {
+	for _, tag := range fc.AllTags {
+		if tag.Key == key {
+			return tag, true
+		}
+	}
+	return Tag{}, false
+}
+
 // IsZero reports whether the field holds the zero value for its type.
 func (fc FieldContext) IsZero() bool {
 	return fc.Value.IsZero()

@@ -15,6 +15,8 @@ Every notable change to structwalker is listed here. Versions follow [semantic v
 - `SetValue` parses a string into a `time.Duration` (`default:"30s"` now works on a duration field), a `[]byte` and any type that implements `encoding.TextUnmarshaler`. That covers `time.Time`, `netip.Addr`, `big.Int` and most UUID and decimal types without structwalker knowing about them. ([#7](https://github.com/rjp2525/structwalker/pull/7))
 - `SetValue` fills pointer fields. Setting `"8080"` on a `*int` allocates the int and points the field at it. ([#7](https://github.com/rjp2525/structwalker/pull/7))
 - `ErrNotSettable`, returned by `SetValue` when the field cannot be changed, so a handler can tell that apart from a bad value. ([#7](https://github.com/rjp2525/structwalker/pull/7))
+- Single quotes keep a comma inside a tag value: `validate:"role,oneof='admin,editor'"` gives the option `oneof` the value `admin,editor`. The quotes are stripped. An apostrophe in the middle of a value is left alone. ([#8](https://github.com/rjp2525/structwalker/pull/8))
+- `FieldContext.Lookup(key)` returns another tag on the same field. A `validate` handler can use it to report the field's `json` name. ([#8](https://github.com/rjp2525/structwalker/pull/8))
 
 ### Changed
 
@@ -27,6 +29,7 @@ Every notable change to structwalker is listed here. Versions follow [semantic v
 - Map entries are visited in key order, so paths, handler calls and collected errors come out the same on every run. ([#5](https://github.com/rjp2525/structwalker/pull/5))
 - A flat struct now walks with zero allocations. ([#5](https://github.com/rjp2525/structwalker/pull/5))
 - `SetValue` errors read `field Port: cannot parse "abc" as int: invalid syntax`. They name the field first and no longer include `strconv` internals. ([#7](https://github.com/rjp2525/structwalker/pull/7))
+- Spaces around an option's key are trimmed, so `max = 5` sets `max`. ([#8](https://github.com/rjp2525/structwalker/pull/8))
 
 ### Fixed
 
@@ -46,6 +49,7 @@ Every notable change to structwalker is listed here. Versions follow [semantic v
 - Walking an unexported map field with `WithUnexported` and `WithMapEntries` no longer panics. ([#5](https://github.com/rjp2525/structwalker/pull/5))
 - `SetValue(65)` on a string field returned no error and stored `"A"`. Numbers are no longer converted to strings. ([#7](https://github.com/rjp2525/structwalker/pull/7))
 - `SetValue` refuses numbers that do not fit instead of wrapping them. `"300"` into an `int8`, `-1` into a `uint` and `1.5` into an `int` are all errors now and leave the field untouched. ([#7](https://github.com/rjp2525/structwalker/pull/7))
+- Escaped characters in a tag value are unescaped. `desc:"say \"hi\""` used to come through with the backslashes still in it. Tag parsing now agrees with `reflect.StructTag.Lookup` on every input, which a fuzz test checks. ([#8](https://github.com/rjp2525/structwalker/pull/8))
 
 ### Deprecated
 
@@ -56,6 +60,7 @@ Every notable change to structwalker is listed here. Versions follow [semantic v
 - CI now tests on Go 1.26 and 1.27 and fails if `go fix` has anything left to do. ([#2](https://github.com/rjp2525/structwalker/pull/2))
 - Dependabot keeps the GitHub Actions up to date. ([#2](https://github.com/rjp2525/structwalker/pull/2))
 - Release notes are taken from this file, so a tag without a changelog section fails the release. ([#2](https://github.com/rjp2525/structwalker/pull/2))
+- A fuzz test compares `ParseAllTags` with the standard library. ([#8](https://github.com/rjp2525/structwalker/pull/8))
 
 ## v1.0.0
 
