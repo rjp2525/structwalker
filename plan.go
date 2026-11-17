@@ -94,7 +94,7 @@ func (r *registry) build(t reflect.Type, opts *walkerOptions) *typePlan {
 
 // steps works out which handlers run on a field with the given tags. They are
 // ordered by priority. Ties go to tag handlers in the order the tags are
-// written on the field, then to HandleAll handlers, and registration order
+// written on the field, then to HandleAll handlers. Registration order
 // settles whatever is left.
 func (r *registry) steps(tags []Tag) (before, after []step) {
 	type candidate struct {

@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// Middleware wraps a handler call. Call next to continue, or return without
+// Middleware wraps a handler call. Call next to continue. Return without
 // calling it to keep the handler from running.
 type Middleware func(ctx FieldContext, next HandlerFunc) error
 

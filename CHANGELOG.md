@@ -17,13 +17,13 @@ Every notable change to structwalker is listed here. Versions follow [semantic v
 - `ErrNotSettable`, returned by `SetValue` when the field cannot be changed, so a handler can tell that apart from a bad value. ([#7](https://github.com/rjp2525/structwalker/pull/7))
 - Single quotes keep a comma inside a tag value: `validate:"role,oneof='admin,editor'"` gives the option `oneof` the value `admin,editor`. The quotes are stripped. An apostrophe in the middle of a value is left alone. ([#8](https://github.com/rjp2525/structwalker/pull/8))
 - `FieldContext.Lookup(key)` returns another tag on the same field. A `validate` handler can use it to report the field's `json` name. ([#8](https://github.com/rjp2525/structwalker/pull/8))
-- `Fields`, an iterator over a struct's fields for when you just want a loop. `for f := range structwalker.Fields(&cfg)` visits everything `Walk` would, with the same `FieldContext`, and `break` stops it. No walker, handlers or error plumbing needed. `Walker.Fields` does the same with a walker's options. ([#9](https://github.com/rjp2525/structwalker/pull/9))
+- `Fields`, an iterator over a struct's fields for when you just want a loop. `for f := range structwalker.Fields(&cfg)` visits everything `Walk` would with the same `FieldContext`. `break` stops it. No walker, handlers or error plumbing needed. `Walker.Fields` does the same with a walker's options. ([#9](https://github.com/rjp2525/structwalker/pull/9))
 
 ### Changed
 
 - The code now uses `reflect.Pointer` and `reflect.TypeFor` in place of their older spellings. Nothing changes for callers. ([#1](https://github.com/rjp2525/structwalker/pull/1))
-- Handler priority now orders every handler on a field. A `json` handler at priority 10 runs before a `validate` handler at the default 100, and `HandleAll` handlers take part too. Handlers that tie run in the order their tags are written on the field, then `HandleAll` handlers, then registration order. If you only ever used priorities within one tag key, nothing changes. ([#3](https://github.com/rjp2525/structwalker/pull/3))
-- Walks are much cheaper. Handlers are sorted and wrapped in middleware once per struct type instead of on every field. A flat six-field struct went from 844ns and 10 allocations to 227ns and 1 on an M-series laptop. ([#3](https://github.com/rjp2525/structwalker/pull/3))
+- Handler priority now orders every handler on a field. A `json` handler at priority 10 runs before a `validate` handler at the default 100. `HandleAll` handlers take part too. Handlers that tie run in the order their tags are written on the field, then `HandleAll` handlers, then registration order. If you only ever used priorities within one tag key, nothing changes. ([#3](https://github.com/rjp2525/structwalker/pull/3))
+- Walks are much cheaper. Handlers are sorted and wrapped in middleware once per struct type instead of on every field. A flat five-field struct went from 844ns and 10 allocations to 227ns and 1 on an M-series laptop. ([#3](https://github.com/rjp2525/structwalker/pull/3))
 - `MultiError.Error()` no longer ends with a newline and no longer repeats the `structwalker:` prefix on every line. ([#4](https://github.com/rjp2525/structwalker/pull/4))
 - A recovered panic reads `structwalker: Name (tag "x"): panic: boom`. The path and tag used to appear twice. ([#4](https://github.com/rjp2525/structwalker/pull/4))
 - `WithSliceElements` and `WithMapEntries` reach structs at any nesting: `[][]Item`, `map[string][]*Item`, `*[]Item`, `**Item` and arrays all work. Only one level of slice or map was walked before. ([#5](https://github.com/rjp2525/structwalker/pull/5))
@@ -31,7 +31,8 @@ Every notable change to structwalker is listed here. Versions follow [semantic v
 - A flat struct now walks with zero allocations. ([#5](https://github.com/rjp2525/structwalker/pull/5))
 - `SetValue` errors read `field Port: cannot parse "abc" as int: invalid syntax`. They name the field first and no longer include `strconv` internals. ([#7](https://github.com/rjp2525/structwalker/pull/7))
 - Spaces around an option's key are trimmed, so `max = 5` sets `max`. ([#8](https://github.com/rjp2525/structwalker/pull/8))
-- The package documentation is rewritten around what you would build with it, and every `FieldContext` field is documented. There are new runnable examples for defaults, `Lookup`, `WalkContext` and tag parsing. ([#10](https://github.com/rjp2525/structwalker/pull/10))
+- The package documentation is rewritten around what you would build with it. Every `FieldContext` field is documented. There are new runnable examples for defaults, `Lookup`, `WalkContext` and tag parsing. ([#10](https://github.com/rjp2525/structwalker/pull/10))
+- The README is rewritten. It is shorter, leads with what the package is for and no longer documents `structwalker.SkipChildren`, a name that never existed. The reference material moves to the docs site. ([#11](https://github.com/rjp2525/structwalker/pull/11))
 
 ### Fixed
 
