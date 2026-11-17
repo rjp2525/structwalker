@@ -31,6 +31,7 @@ Every notable change to structwalker is listed here. Versions follow [semantic v
 - A flat struct now walks with zero allocations. ([#5](https://github.com/rjp2525/structwalker/pull/5))
 - `SetValue` errors read `field Port: cannot parse "abc" as int: invalid syntax`. They name the field first and no longer include `strconv` internals. ([#7](https://github.com/rjp2525/structwalker/pull/7))
 - Spaces around an option's key are trimmed, so `max = 5` sets `max`. ([#8](https://github.com/rjp2525/structwalker/pull/8))
+- The package documentation is rewritten around what you would build with it, and every `FieldContext` field is documented. There are new runnable examples for defaults, `Lookup`, `WalkContext` and tag parsing. ([#10](https://github.com/rjp2525/structwalker/pull/10))
 
 ### Fixed
 
