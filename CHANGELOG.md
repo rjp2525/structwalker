@@ -4,6 +4,18 @@ Every notable change to structwalker is listed here. Versions follow [semantic v
 
 ## Unreleased
 
+Nothing yet.
+
+## v1.1.0
+
+The release that finishes what v1.0 started. structwalker gets a plain `for range` loop over fields, a context per walk and a setter that handles durations, pointers and any `TextUnmarshaler`. Under that, handler dispatch was rebuilt: walks are about four times faster, allocate nothing on a flat struct and are safe to share between goroutines from the first call.
+
+It is a drop-in upgrade. Nothing was removed and no signature changed. Several bug fixes do change behaviour, so skim the Changed and Fixed lists or read [Upgrading to v1.1](https://structwalker.reno.sh/docs/upgrading/).
+
+```bash
+go get github.com/rjp2525/structwalker@v1.1.0
+```
+
 ### Added
 
 - `ErrMaxDepth`. Hitting the depth limit now returns a `*WalkError` you can test with `errors.Is(err, structwalker.ErrMaxDepth)`, with the path where the walk stopped descending. ([#4](https://github.com/rjp2525/structwalker/pull/4))
