@@ -45,7 +45,7 @@ func (w *Walker) Walk(v any) error {
 
 // WalkValue processes a reflect.Value directly.
 func (w *Walker) WalkValue(v reflect.Value) error {
-	for v.Kind() == reflect.Ptr {
+	for v.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			return nil
 		}
@@ -278,7 +278,7 @@ func (w *Walker) walkSlice(v reflect.Value, basePath string, depth int, visited 
 // walkSliceElem processes a single slice element, dereferencing pointers and
 // recursing into structs. Extracted from walkSlice to avoid defer-in-loop (G35).
 func (w *Walker) walkSliceElem(elem reflect.Value, elemPath string, depth int, visited map[uintptr]bool) error {
-	if elem.Kind() == reflect.Ptr {
+	if elem.Kind() == reflect.Pointer {
 		if elem.IsNil() {
 			return nil
 		}
@@ -317,7 +317,7 @@ func (w *Walker) walkMap(v reflect.Value, basePath string, depth int, visited ma
 // walkMapElem processes a single map value, dereferencing pointers and
 // recursing into structs. Extracted from walkMap to avoid defer-in-loop (G35).
 func (w *Walker) walkMapElem(elem reflect.Value, elemPath string, depth int, visited map[uintptr]bool) error {
-	if elem.Kind() == reflect.Ptr {
+	if elem.Kind() == reflect.Pointer {
 		if elem.IsNil() {
 			return nil
 		}

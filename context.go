@@ -54,7 +54,7 @@ func (fc FieldContext) SetValue(v any) error {
 func (fc FieldContext) setFromString(s string) error {
 	t := fc.Value.Type()
 
-	if t == reflect.TypeOf(time.Time{}) {
+	if t == reflect.TypeFor[time.Time]() {
 		parsed, err := time.Parse(time.RFC3339, s)
 		if err != nil {
 			return fmt.Errorf("cannot parse %q as time.Time for field %s: %w", s, fc.Path, err)
@@ -104,7 +104,7 @@ func (fc FieldContext) IsZero() bool {
 // IsNil reports whether the field is a nil pointer, slice, map, or interface.
 func (fc FieldContext) IsNil() bool {
 	switch fc.Value.Kind() {
-	case reflect.Ptr, reflect.Slice, reflect.Map, reflect.Interface, reflect.Chan, reflect.Func:
+	case reflect.Pointer, reflect.Slice, reflect.Map, reflect.Interface, reflect.Chan, reflect.Func:
 		return fc.Value.IsNil()
 	default:
 		return false

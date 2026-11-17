@@ -13,7 +13,7 @@ func TestTypeCache_GetAndCacheHit(t *testing.T) {
 		Email string `json:"email"`
 	}
 
-	st := reflect.TypeOf(Sample{})
+	st := reflect.TypeFor[Sample]()
 	keys := []string{"json", "validate"}
 
 	meta1 := cache.get(st, keys, nil)
@@ -46,7 +46,7 @@ func TestTypeCache_FieldMeta(t *testing.T) {
 		Lookup map[string]string `json:"lookup"`
 	}
 
-	st := reflect.TypeOf(Outer{})
+	st := reflect.TypeFor[Outer]()
 	meta := cache.get(st, []string{"json"}, nil)
 
 	if len(meta.Fields) != 5 {
@@ -94,7 +94,7 @@ func TestTypeCache_HandlerKeys(t *testing.T) {
 		Age   int    `json:"age"`
 	}
 
-	st := reflect.TypeOf(Sample{})
+	st := reflect.TypeFor[Sample]()
 	meta := cache.get(st, []string{"json", "validate"}, nil)
 
 	// Name has both json and validate
@@ -120,7 +120,7 @@ func TestTypeCache_Clear(t *testing.T) {
 		Name string `json:"name"`
 	}
 
-	st := reflect.TypeOf(Sample{})
+	st := reflect.TypeFor[Sample]()
 	cache.get(st, []string{"json"}, nil)
 	cache.clear()
 
@@ -142,7 +142,7 @@ func TestTypeCache_Invalidate(t *testing.T) {
 		Name string `json:"name"`
 	}
 
-	st := reflect.TypeOf(Sample{})
+	st := reflect.TypeFor[Sample]()
 	meta1 := cache.get(st, []string{"json"}, nil)
 	cache.invalidate(st)
 	meta2 := cache.get(st, []string{"json"}, nil)

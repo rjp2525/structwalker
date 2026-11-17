@@ -132,7 +132,7 @@ func BenchmarkRawReflection(b *testing.B) {
 func BenchmarkTypeCache_Hit(b *testing.B) {
 	cache := newTypeCache()
 	keys := []string{"json", "validate"}
-	t := reflect.TypeOf(BenchStruct{})
+	t := reflect.TypeFor[BenchStruct]()
 	cache.get(t, keys, nil) // warm up
 
 	b.ResetTimer()
