@@ -18,6 +18,11 @@ var (
 	// ErrMaxDepth is reported when a struct is nested deeper than WithMaxDepth
 	// allows. Check for it with errors.Is.
 	ErrMaxDepth = errors.New("max depth exceeded")
+
+	// ErrNotSettable is returned by FieldContext.SetValue when the field
+	// cannot be changed. The usual causes are passing a struct to Walk by
+	// value, an unexported field or a struct stored directly in a map.
+	ErrNotSettable = errors.New("not settable")
 )
 
 func isFlowControl(err error) bool {
